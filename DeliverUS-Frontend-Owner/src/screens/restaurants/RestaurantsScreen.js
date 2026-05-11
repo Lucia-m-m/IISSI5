@@ -15,6 +15,7 @@ import { API_BASE_URL } from '@env'
 
 export default function RestaurantsScreen({ navigation, route }) {
   const [restaurants, setRestaurants] = useState([])
+  const [restaurantToBeDeleted, setRestaurantToBeDeleted] = useState(null) //se inicializa con el estado null, cuando se pulse el boton delete pasara a True, en restaurantToBeDeleted metemos el restaurante selleccionado
   const { loggedInUser } = useContext(AuthorizationContext)
 
   useEffect(() => {
@@ -52,12 +53,76 @@ export default function RestaurantsScreen({ navigation, route }) {
           </TextSemiBold>
         </TextSemiBold>
         <View style={styles.actionButtonsContainer}>
-          {/* Include pressable elements for edit and remove this line including brackets */}
+          <Pressable
+            onPress={
+              () => navigation.navigate('EditRestaurantScreen', { id: item.id }) //cuando se pulsa nos lleva a EditRestaurantScreen del restaurnat que corresponda la id
+            }
+            style={({ pressed }) => [
+              {
+                backgroundColor: pressed
+                  ? GlobalStyles.brandBlueTap
+                  : GlobalStyles.brandBlue
+              },
+              styles.actionButton
+            ]}
+          >
+            <View
+              style={[
+                { flex: 1, flexDirection: 'row', justifyContent: 'center' }
+              ]}
+            >
+              <MaterialCommunityIcons name="pencil" color={'white'} size={20} />
+              <TextRegular textStyle={styles.text}>Edit</TextRegular>
+            </View>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              setRestaurantToBeDeleted(item) //cuando presionamos, el restaurante seleccionado para a estar en restaurantToBeDeleted
+            }}
+            style={({ pressed }) => [
+              {
+                backgroundColor: pressed
+                  ? GlobalStyles.brandPrimaryTap
+                  : GlobalStyles.brandPrimary
+              },
+              styles.actionButton
+            ]}
+          >
+            <View
+              style={[
+                { flex: 1, flexDirection: 'row', justifyContent: 'center' }
+              ]}
+            >
+              <MaterialCommunityIcons name="delete" color={'white'} size={20} />
+              <TextRegular textStyle={styles.text}>Delete</TextRegular>
+            </View>
+          </Pressable>
         </View>
       </ImageCard>
     )
   }
-
+  const removeRestaurant = async restaurant => {
+    try {
+      await remove(restaurant.id) //await se hace porque hace operaciones asincronas, ejecuta una tarea que tarda tiempo sin bloquear el resto de la aplicacion, poner cuando es cosas de fuera de mi codigo, llamadas a backend por ejemplo
+      await fetchRestaurants() //pide los restaurante actualizado
+      setRestaurantToBeDeleted(null) //limpia el estado asi no queda seleccionado un restaurante ya eliminado
+      showMessage({
+        message: `Restaurant ${restaurant.name} successfully removed`,
+        type: 'success',
+        style: GlobalStyles.flashStyle,
+        titleStyle: GlobalStyles.flashTextStyle
+      })
+    } catch (error) {
+      console.log(error)
+      setRestaurantToBeDeleted(null)
+      showMessage({
+        message: `Restaurant ${restaurant.name} could not be removed.`,
+        type: 'error',
+        style: GlobalStyles.flashStyle,
+        titleStyle: GlobalStyles.flashTextStyle
+      })
+    }
+  }
   const renderEmptyRestaurantsList = () => {
     return (
       <TextRegular textStyle={styles.emptyList}>
@@ -101,6 +166,7 @@ export default function RestaurantsScreen({ navigation, route }) {
     )
   }
   const fetchRestaurants = async () => {
+    //coge todos los restaurnantes y hace un setRestaurants
     try {
       const fetchedRestaurants = await getAll()
       setRestaurants(fetchedRestaurants)
@@ -114,7 +180,6 @@ export default function RestaurantsScreen({ navigation, route }) {
     }
   }
 
-
   return (
     <>
       <FlatList
@@ -125,7 +190,18 @@ export default function RestaurantsScreen({ navigation, route }) {
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmptyRestaurantsList}
       />
-
+      <DeleteModal
+        isVisible={restaurantToBeDeleted !== null} //muestra el restaurante que queremos eliminar si es diferente de null.
+        onCancel={() => setRestaurantToBeDeleted(null)} //cuando se pulsa cancelar el restaurante pasa a ser null en setRestaurantToBeDeleted(null), isvisible pasa a ser false
+        onConfirm={() => removeRestaurant(restaurantToBeDeleted)} //se hace la funcionremoveRestaurant u le pasa el restaurante seleccionado
+      >
+        <TextRegular>
+          The products of this restaurant will be deleted as well
+        </TextRegular>
+        <TextRegular>
+          If the restaurant has orders, it cannot be deleted.
+        </TextRegular>
+      </DeleteModal>
     </>
   )
 }

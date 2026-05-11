@@ -5,7 +5,8 @@ import * as yup from 'yup'
 import DropDownPicker from 'react-native-dropdown-picker'
 import {
   getRestaurantCategories,
-  getDetail
+  getDetail,
+  update
 } from '../../api/RestaurantEndpoints'
 import InputItem from '../../components/InputItem'
 import TextRegular from '../../components/TextRegular'
@@ -23,7 +24,21 @@ export default function EditRestaurantScreen({ navigation, route }) {
   const [open, setOpen] = useState(false)
   const [restaurantCategories, setRestaurantCategories] = useState([])
   const [backendErrors, setBackendErrors] = useState()
+  const [restaurant, setRestaurant] = useState({})
 
+  const [initialRestaurantValues, setInitialRestaurantValues] = useState({
+    name: null,
+    description: null,
+    address: null,
+    postalCode: null,
+    url: null,
+    shippingCosts: null,
+    email: null,
+    phone: null,
+    restaurantCategoryId: null,
+    logo: null,
+    heroImage: null
+  })
   const validationSchema = yup.object().shape({
     name: yup.string().max(255, 'Name too long').required('Name is required'),
     address: yup
@@ -47,35 +62,58 @@ export default function EditRestaurantScreen({ navigation, route }) {
       .integer()
       .required('Restaurant category is required')
   })
-
+  const updateRestaurant = async values => {
+    setBackendErrors([])
+    try {
+      const updatedRestaurant = await update(restaurant.id, values)
+      showMessage({
+        message: `Restaurant ${updatedRestaurant.name} succesfully updated`,
+        type: 'success',
+        style: GlobalStyles.flashStyle,
+        titleStyle: GlobalStyles.flashTextStyle
+      })
+      navigation.navigate('RestaurantsScreen', { dirty: true })
+    } catch (error) {
+      console.log(error)
+      setBackendErrors(error.errors)
+    }
+  }
   useEffect(() => {
-    async function fetchRestaurantCategories() {
+    //se utiliza cuando la panatalla se carga(o cambia a route)
+    async function fetchRestaurantDetail() {
       try {
-        const fetchedRestaurantCategories = await getRestaurantCategories()
-        const fetchedRestaurantCategoriesReshaped =
-          fetchedRestaurantCategories.map(e => {
-            return {
-              label: e.name,
-              value: e.id
-            }
-          })
-        setRestaurantCategories(fetchedRestaurantCategoriesReshaped)
+        const fetchedRestaurant = await getDetail(route.params.id) //pide datos a backend, procesarlos, guardarlos en el estado //route.params.id id que enviaste desde la pantalla anterior, getDetail(id) llama al backend
+        const preparedRestaurant = prepareEntityImages(fetchedRestaurant, [
+          //convierte campos como: logo y heroImage en url validas para mostrar imagenes
+          'logo',
+          'heroImage'
+        ])
+        setRestaurant(preparedRestaurant)
+        const initialValues = buildInitialValues(
+          //coge la plantlla del formulario cuando esta vacia y la utiliza para establecer los nuevos datos del backend
+          preparedRestaurant, //datos reales del backend
+          initialRestaurantValues //define como es el formato(formulario, cuando esta vacio )
+        )
+        setInitialRestaurantValues(initialValues)
       } catch (error) {
         showMessage({
-          message: `There was an error while retrieving restaurant categories. ${error} `,
+          message: `There was an error while retrieving restaurant details (id ${route.params.id}). ${error}`,
           type: 'error',
           style: GlobalStyles.flashStyle,
           titleStyle: GlobalStyles.flashTextStyle
         })
       }
     }
-    fetchRestaurantCategories()
-  }, [])
+    fetchRestaurantDetail()
+  }, [route]) //ejecuta esto cuando route cambie
 
   return (
     <Formik
       validationSchema={validationSchema}
       // include the formik properties here
+      enableReinitialize //Si cambian los initialValues, vuelve a inicializar el formulario.”
+      initialValues={initialRestaurantValues} //“Estos son los valores iniciales de los inputs.””
+      onSubmit={updateRestaurant} //Cuando el usuario pulse guardar, ejecuta esta función
     >
       {({ handleSubmit, setFieldValue, values }) => (
         <ScrollView>
@@ -161,7 +199,6 @@ export default function EditRestaurantScreen({ navigation, route }) {
     </Formik>
   )
 }
-
 const styles = StyleSheet.create({
   button: {
     borderRadius: 8,
